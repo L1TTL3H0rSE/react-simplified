@@ -43,3 +43,6 @@ Thumbs.db
 # Repomix output
 repomix-output.*
 *.repomix.*
+
+# svgs
+*.svg
