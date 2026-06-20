@@ -6,6 +6,7 @@
         "apps/api"
     ],
     "scripts": {
-        "dev": "npm run dev --workspace @react-simplified/web"
+        "dev:api": "npm run dev --workspace @react-simplified/api",
+        "dev:web": "npm run dev --workspace @react-simplified/web"
     }
 }
