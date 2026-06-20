@@ -1,7 +1,29 @@
 import express from "express";
 import cors from "cors";
+import z from "zod";
 
 export type Habit = { id: string; name: string; completions: string[] };
+
+const createHabitBodySchema = z.object({
+  name: z.string().trim().min(1),
+});
+const idParamsSchema = z.object({
+  id: z.uuid(),
+});
+const completionBodySchema = z.object({
+  date: z.iso.date(),
+});
+const completionParamsSchema = z.object({
+  id: z.uuid(),
+});
+const habitDateParamsSchema = z.object({
+  id: z.uuid(),
+  date: z.iso.date(),
+});
+const toggleCompletionParamSchema = z.object({
+  id: z.uuid(),
+  date: z.iso.date(),
+});
 
 const app = express();
 const port = 3000;
@@ -12,10 +34,6 @@ app.use(
   }),
 );
 app.use(express.json());
-
-app.get("/", (req, res) => {
-  res.send("Hello World!");
-});
 
 app.get("/health", (req, res) => {
   res.status(200).send({ ok: true });
@@ -28,10 +46,19 @@ app.get("/api/habits", (req, res) => {
 });
 
 app.post("/api/habits", (req, res) => {
-  const habit = req.body as Omit<Habit, "id" | "completions">;
+  const body = createHabitBodySchema.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).send({
+      error: "Invalid request body",
+      issues: body.error.issues,
+    });
+    return;
+  }
+  const { name } = body.data;
+
   const newHabit: Habit = {
-    ...habit,
     id: crypto.randomUUID(),
+    name,
     completions: [],
   };
   habits.push(newHabit);
@@ -39,34 +66,74 @@ app.post("/api/habits", (req, res) => {
 });
 
 app.delete("/api/habits/:id", (req, res) => {
-  const { id } = req.params;
+  const params = idParamsSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).send({
+      error: "Invalid request params",
+      issues: params.error.issues,
+    });
+    return;
+  }
+  const { id } = params.data;
+
   habits = habits.filter((e) => e.id != id);
   res.status(204).send();
 });
 
 //эти оставлю просто как вариант, чтобы потестить в insomnia
 app.post("/api/habits/:id/completions", (req, res) => {
-  const { id } = req.params;
-  const { date } = req.body;
-  const habitIndex = habits.findIndex((e) => e.id == id);
-  if (habitIndex == -1) {
-    res.status(404).send("No such id found!");
+  const params = completionParamsSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).send({
+      error: "Invalid request params",
+      issues: params.error.issues,
+    });
     return;
   }
+  const { id } = params.data;
+
+  const body = completionBodySchema.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).send({
+      error: "Invalid request body",
+      issues: body.error.issues,
+    });
+    return;
+  }
+  const { date } = body.data;
+
+  const habitIndex = habits.findIndex((e) => e.id == id);
+
+  if (habitIndex == -1) {
+    res.status(404).send("Habit not found");
+    return;
+  }
+
   const dateIndex = habits[habitIndex].completions.findIndex((e) => e == date);
+
   if (dateIndex != -1) {
     res.status(409).send();
     return;
   }
+
   habits[habitIndex].completions.push(date);
   res.status(201).send(habits[habitIndex]);
 });
 
 app.delete("/api/habits/:id/completions/:date", (req, res) => {
-  const { id, date } = req.params;
+  const params = habitDateParamsSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).send({
+      error: "Invalid request params",
+      issues: params.error.issues,
+    });
+    return;
+  }
+  const { id, date } = params.data;
+
   const habitIndex = habits.findIndex((e) => e.id == id);
   if (habitIndex == -1) {
-    res.status(404).send("No such id found!");
+    res.status(404).send("Habit not found");
     return;
   }
   habits[habitIndex].completions = habits[habitIndex].completions.filter(
@@ -75,12 +142,21 @@ app.delete("/api/habits/:id/completions/:date", (req, res) => {
   res.status(204).send();
 });
 
-//но буду использовать тоггл в реакте
+//буду использовать тоггл ендпоинт реакте
 app.post("/api/habits/:id/toggle-completion/:date", (req, res) => {
-  const { id, date } = req.params;
+  const params = toggleCompletionParamSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).send({
+      error: "Invalid request params",
+      issues: params.error.issues,
+    });
+    return;
+  }
+  const { id, date } = params.data;
+
   const habitIndex = habits.findIndex((e) => e.id == id);
   if (habitIndex == -1) {
-    res.status(404).send("No such id found!");
+    res.status(404).send("Habit not found");
     return;
   }
   const dateIndex = habits[habitIndex].completions.findIndex((e) => e == date);
@@ -92,7 +168,7 @@ app.post("/api/habits/:id/toggle-completion/:date", (req, res) => {
   habits[habitIndex].completions = habits[habitIndex].completions.filter(
     (e) => e != date,
   );
-  res.status(204).send();
+  res.status(201).send(habits[habitIndex]);
 });
 
 app.listen(port, () => {
