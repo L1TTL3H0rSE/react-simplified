@@ -1,42 +1,72 @@
-import { isSameDay } from "date-fns";
-import { type ReactNode } from "react";
+import { format, parseISO } from "date-fns";
+import { useEffect, useState, type ReactNode } from "react";
 import { HabitContext, type Habit } from "./useHabits";
-import { useLocalStorage } from "../hooks/useLocalStorage";
+import {
+  createHabit,
+  deleteHabitRequest,
+  getHabits,
+  toggleHabitCompletion,
+  type ApiHabit,
+} from "../api/habitsApi";
 
 export type HabitProviderProps = {
   children: ReactNode;
 };
 
-export function HabitProvider({ children }: HabitProviderProps) {
-  const [habits, setHabits] = useLocalStorage<Habit[]>("Habits", []);
+function mapApiHabit(apiHabit: ApiHabit): Habit {
+  return {
+    id: apiHabit.id,
+    name: apiHabit.name,
+    completions: apiHabit.completions.map((e) => parseISO(e)),
+  };
+}
 
-  function addHabit(name: string) {
-    setHabits((curr) => [
-      ...curr,
-      { id: crypto.randomUUID(), name, completions: [] },
-    ]);
+export function HabitProvider({ children }: HabitProviderProps) {
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadHabits() {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const apiHabits = await getHabits();
+        setHabits(apiHabits.map(mapApiHabit));
+      } catch {
+        setError("Could not load habits");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadHabits();
+  }, []);
+
+  async function addHabit(name: string) {
+    const habit = mapApiHabit(await createHabit(name));
+
+    setHabits((curr) => [...curr, habit]);
   }
 
-  function deleteHabit(id: string) {
+  async function deleteHabit(id: string) {
+    await deleteHabitRequest(id);
+
     setHabits((curr) => curr.filter((el) => el.id != id));
   }
 
-  function toggleHabit(id: string, date: Date) {
-    setHabits((curr) =>
-      curr.map((e) => {
-        if (e.id != id) return e;
-        const alreadyDone = e.completions.some((c) => isSameDay(c, date));
-        const completions = alreadyDone
-          ? e.completions.filter((c) => !isSameDay(c, date))
-          : [...e.completions, date];
+  async function toggleHabit(id: string, date: Date) {
+    const dateString = format(date, "yyyy-MM-dd");
+    const habit = mapApiHabit(await toggleHabitCompletion(id, dateString));
 
-        return { ...e, completions };
-      }),
-    );
+    setHabits((curr) => curr.map((e) => (e.id == habit.id ? habit : e)));
   }
 
   return (
-    <HabitContext value={{ habits, addHabit, toggleHabit, deleteHabit }}>
+    <HabitContext
+      value={{ habits, addHabit, toggleHabit, deleteHabit, isLoading, error }}
+    >
       {children}
     </HabitContext>
   );

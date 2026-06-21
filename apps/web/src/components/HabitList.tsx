@@ -7,7 +7,15 @@ type HabitListProps = {
 };
 
 export function HabitList({ visibleDates }: HabitListProps) {
-  const { habits } = useHabits();
+  const { habits, isLoading, error } = useHabits();
+
+  if (isLoading) {
+    return <p className="text-center text-zinc-500 py-12">Loading...</p>;
+  }
+
+  if (error != null) {
+    return <p className="text-center text-red-400 py-12">{error}</p>;
+  }
 
   if (habits.length == 0) {
     return (

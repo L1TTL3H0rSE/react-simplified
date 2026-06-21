@@ -4,14 +4,21 @@ import { useHabits } from "../context/useHabits";
 
 export function HabitForm() {
   const [name, setName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const { addHabit } = useHabits();
 
-  function handleSubmit(e: SubmitEvent) {
+  async function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
 
     if (name.trim() == "") return;
-    addHabit(name);
-    setName("");
+
+    try {
+      setSubmitting(true);
+      await addHabit(name);
+    } finally {
+      setSubmitting(false);
+      setName("");
+    }
   }
 
   return (
@@ -23,7 +30,7 @@ export function HabitForm() {
         placeholder="New Habit..."
       />
       <Button
-        disabled={name.trim() == ""}
+        disabled={name.trim() == "" || submitting}
         className="rounded-lg px-4 py-2 font-medium"
       >
         Add Habit
